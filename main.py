@@ -1,6 +1,7 @@
 import requests
 import re
 import base64
+import json
 from urllib.parse import urlparse, unquote
 
 SOURCES = [
@@ -21,121 +22,120 @@ def try_base64_decode(text):
     except:
         return text
 
-def parse_uri(url):
-    """同时支持 hysteria:// 和 hysteria2://"""
+def parse_any_uri(url):
+    """解析多种类型的代理链接"""
     try:
         url = url.strip()
         parsed = urlparse(url)
-        # 自动识别类型
-        node_type = "hysteria" if url.startswith("hysteria://") else "hysteria2"
+        scheme = parsed.scheme.lower()
         
-        password = ""
-        if '@' in parsed.netloc:
-            password = unquote(parsed.netloc.split('@')[0])
-        host_port = parsed.netloc.split('@')[-1]
-        server = host_port.split(':')[0] if ':' in host_port else host_port
-        port = host_port.split(':')[1] if ':' in host_port else "443"
+        # 基础信息提取
+        name = unquote(parsed.fragment) if parsed.fragment else f"{scheme}-{parsed.hostname}"
+        server = parsed.hostname
+        port = parsed.port or 443
         
-        params = {}
-        if parsed.query:
-            for p in parsed.query.split('&'):
-                if '=' in p:
-                    k, v = p.split('=', 1)
-                    params[k] = v
-        if not password and 'auth' in params:
-            password = params['auth']
-            
-        name = unquote(parsed.fragment) if parsed.fragment else f"{node_type}-{server}"
-        if not password or not server: return None
+        # 1. 处理 VMess (通常是 base64 json)
+        if scheme == "vmess":
+            v_data = json.loads(try_base64_decode(url[8:]))
+            return {
+                "name": v_data.get('ps', name), "type": "vmess", "server": v_data['add'],
+                "port": v_data['port'], "uuid": v_data['id'], "alterId": v_data['aid'],
+                "cipher": "auto", "tls": True if v_data.get('tls') == "tls" else False,
+                "servername": v_data.get('sni', v_data['add'])
+            }
+
+        # 2. 处理 VLESS / Trojan / SS / Hysteria
+        user_info = unquote(parsed.netloc.split('@')[0]) if '@' in parsed.netloc else ""
+        params = {k: v[0] for k, v in [p.split('=') for p in parsed.query.split('&')] if '=' in p}
         
-        return {
-            "name": name, "type": node_type, "server": server, 
-            "port": port, "password": password, "sni": params.get("sni", server)
+        node = {
+            "name": name, "type": scheme, "server": server, "port": port,
+            "skip-cert-verify": True, "sni": params.get("sni", server)
         }
+
+        if scheme == "vless":
+            node.update({"uuid": user_info, "cipher": "auto", "tls": True})
+        elif scheme == "trojan":
+            node.update({"password": user_info, "sni": params.get("sni", server)})
+        elif scheme in ["hysteria", "hysteria2", "hy2"]:
+            node["type"] = "hysteria2" if scheme in ["hysteria2", "hy2"] else "hysteria"
+            node["password"] = user_info or params.get("auth", "")
+        elif scheme == "ss":
+            # Shadowsocks 比较复杂，这里做简化处理
+            node.update({"cipher": user_info.split(':')[0] if ':' in user_info else "aes-256-gcm", 
+                         "password": user_info.split(':')[1] if ':' in user_info else user_info})
+            
+        return node
     except:
         return None
 
-def extract_from_content(text):
-    nodes = []
-    # 修改正则，使其兼容 hysteria 和 hysteria2
-    uris = re.findall(r'(?:hysteria2|hysteria|hy2)://[^\s\'"<>]+', text)
-    decoded = try_base64_decode(text)
-    if decoded != text:
-        uris.extend(re.findall(r'(?:hysteria2|hysteria|hy2)://[^\s\'"<>]+', decoded))
-    
-    for uri in set(uris):
-        n = parse_uri(uri)
-        if n: nodes.append(n)
-    return nodes
-
 def main():
-    print(">>> 启动双类型(Hy1 & Hy2)深度抓取...")
+    print(">>> 启动全协议万能抓取机器人...")
     all_final_nodes = []
     
     for url in SOURCES:
         try:
-            print(f"扫描: {url}")
+            print(f"扫描源: {url}")
             resp = requests.get(url, timeout=15)
             content = resp.text
             
-            # 1. 提取 YAML
+            # 策略 A: 识别 YAML
             if "proxies:" in content:
                 blocks = re.split(r'-\s*name:', content)
                 for block in blocks[1:]:
-                    # 同时匹配 hysteria 和 hysteria2
-                    type_match = re.search(r'type:\s*(hysteria2|hysteria|hy2|hy)', block, re.I)
-                    if type_match:
-                        raw_type = type_match.group(1).lower()
-                        real_type = "hysteria" if raw_type in ["hysteria", "hy"] else "hysteria2"
-                        try:
-                            def gv(k):
-                                m = re.search(rf'{k}:\s*["\']?(.+?)["\']?\s*(?:\n|$)', block)
-                                return m.group(1).strip() if m else ""
-                            all_final_nodes.append({
-                                "name": block.split('\n')[0].strip('"\' '),
-                                "type": real_type,
-                                "server": gv("server"), "port": gv("port"),
-                                "password": gv("password") or gv("auth"),
-                                "sni": gv("sni") or gv("server")
-                            })
-                        except: continue
-
-            # 2. 提取 URI
-            all_final_nodes.extend(extract_from_content(content))
-
-            # 3. 递归抓取
-            if "README.md" in url:
-                # 寻找包含 hysteria1/2 的订阅链接
-                deep_links = re.findall(r'https?://[^\s\'"<>]+?/sub/(?:hysteria2|hysteria|hy2|hy)/\d+', content)
-                for dl in set(deep_links):
                     try:
-                        deep_content = requests.get(dl, timeout=10).text
-                        all_final_nodes.extend(extract_from_content(deep_content))
+                        def gv(k):
+                            m = re.search(rf'{k}:\s*["\']?(.+?)["\']?\s*(?:\n|$)', block)
+                            return m.group(1).strip() if m else ""
+                        all_final_nodes.append({
+                            "name": block.split('\n')[0].strip('"\' '),
+                            "type": gv("type"), "server": gv("server"), "port": gv("port"),
+                            "password": gv("password") or gv("uuid") or gv("auth"),
+                            "sni": gv("sni") or gv("server")
+                        })
                     except: continue
 
+            # 策略 B: 识别 URI (多协议正则)
+            uris = re.findall(r'(?:vmess|vless|trojan|ss|hysteria2|hysteria|hy2)://[^\s\'"<>]+', content)
+            # 处理 Base64 的订阅内容
+            decoded = try_base64_decode(content)
+            uris.extend(re.findall(r'(?:vmess|vless|trojan|ss|hysteria2|hysteria|hy2)://[^\s\'"<>]+', decoded))
+            
+            for uri in set(uris):
+                node = parse_any_uri(uri)
+                if node: all_final_nodes.append(node)
+                
+            # 策略 C: 深度递归 (README 中的订阅)
+            if "README.md" in url:
+                deep_links = re.findall(r'https?://[^\s\'"<>]+?/sub/[^\s\'"<>]+', content)
+                for dl in set(deep_links):
+                    try:
+                        d_resp = requests.get(dl, timeout=10)
+                        all_final_nodes.extend([parse_any_uri(u) for u in re.findall(r'(?:vmess|vless|trojan|ss|hy\d?)://[^\s\'"<>]+', try_base64_decode(d_resp.text))])
+                    except: continue
         except: continue
 
-    # 4. 写入文件
+    # 写入 YAML
     yaml_lines = ["proxies:"]
     seen = set()
     for n in all_final_nodes:
-        if not n.get('server'): continue
-        # 唯一标识加入类型，防止同服务器双协议被去重
-        idx = f"{n['type']}:{n['server']}:{n['port']}"
+        if not n or not n.get('server'): continue
+        idx = f"{n['server']}:{n['port']}"
         if idx not in seen:
             seen.add(idx)
-            clean_name = n['name'].replace('"', '\\"')
-            yaml_lines.append(f"  - name: \"{clean_name}\"")
-            yaml_lines.append(f"    type: {n['type']}")
-            yaml_lines.append(f"    server: \"{n['server']}\"")
-            yaml_lines.append(f"    port: {n['port']}")
-            yaml_lines.append(f"    password: \"{n['password']}\"")
-            yaml_lines.append(f"    sni: \"{n['sni']}\"")
-            yaml_lines.append(f"    skip-cert-verify: true")
+            yaml_lines.append(f"  - name: \"{n['name']}\"\n    type: {n['type']}\n    server: \"{n['server']}\"\n    port: {n['port']}")
+            # 根据类型填入关键认证字段
+            if n['type'] == "vmess":
+                yaml_lines.append(f"    uuid: {n['uuid']}\n    alterId: {n['alterId']}\n    cipher: auto")
+            elif n['type'] == "vless":
+                yaml_lines.append(f"    uuid: {n['uuid']}\n    cipher: auto")
+            else:
+                yaml_lines.append(f"    password: \"{n.get('password', '')}\"")
+            yaml_lines.append(f"    sni: \"{n.get('sni', n['server'])}\"\n    skip-cert-verify: true")
 
     with open("my_sub.yaml", "w", encoding="utf-8") as f:
         f.write("\n".join(yaml_lines))
-    print(f"\n>>> 任务完成！共计抓取 {len(seen)} 个节点。")
+    print(f"\n>>> 任务结束！全协议节点总计: {len(seen)} 个。")
 
 if __name__ == "__main__":
     main()
