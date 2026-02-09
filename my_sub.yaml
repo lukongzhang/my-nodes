@@ -1,4 +1,11 @@
 proxies:
+  - name: "☺️47@oneclickvpnkeys"
+    type: hysteria2
+    server: "[2a0c"
+    port: 4ac1
+    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
+    sni: "api.kermanshahi.org"
+    skip-cert-verify: true
   - name: "美国2"
     type: hysteria2
     server: "mg2.mangshe.xyz"
@@ -13,47 +20,26 @@ proxies:
     password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
     sni: "api.kermanshahi.org"
     skip-cert-verify: true
-  - name: "All_7--@V2rayAlpha"
+  - name: "🇭🇰"
     type: hysteria2
-    server: "206.71.158.37"
-    port: 35000
-    password: "Yet-Another-Public-Config-1"
-    sni: "YAPC-1.afshin.ir"
+    server: "ffc60249-t53wg0-t92wi1-1qkeg.hk2.hyhuawei.com"
+    port: 443
+    password: "a305ac08-d136-11ee-b6db-f23c91cfbbc9"
+    sni: "ffc60249-t53wg0-t92wi1-1qkeg.hk2.hyhuawei.com"
     skip-cert-verify: true
-  - name: "TW"
-    type: hysteria2
-    server: "tw.oomz.ru"
-    port: 30000
-    password: "e7965e64-e001-4e8c-8273-39c61ff4a094"
-    sni: "bing.com"
-    skip-cert-verify: true
-  - name: "☺️92@oneclickvpnkeys"
-    type: hysteria2
-    server: "206.71.158.40"
-    port: 35000
-    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
-    sni: "api.kermanshahi.org"
-    skip-cert-verify: true
-  - name: "@V2rayNG3"
-    type: hysteria2
-    server: "77.90.41.197"
-    port: 35000
-    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
-    sni: "api.kermanshahi.org"
-    skip-cert-verify: true
-  - name: "🍇 @AzarAndoozVPNbot"
+  - name: "کانال تلگرام : Free_VPN_CH@"
     type: hysteria2
     server: "206.71.158.37"
     port: 36400
     password: "Yet-Another-Public-Config-1"
     sni: "YAPC-1.afshin.ir"
     skip-cert-verify: true
-  - name: "☺️98@oneclickvpnkeys"
+  - name: "@azadi_config"
     type: hysteria2
-    server: "206.71.158.41"
-    port: 35000
-    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
-    sni: "api.kermanshahi.org"
+    server: "206.71.158.37"
+    port: 35200
+    password: "Yet-Another-Public-Config-1"
+    sni: "YAPC-1.afshin.ir"
     skip-cert-verify: true
   - name: "新加坡1"
     type: hysteria2
@@ -62,13 +48,6 @@ proxies:
     password: "78c2bad7-f5f3-41f2-88cc-81de9d05040b"
     sni: "xjp1.mangshe.xyz"
     skip-cert-verify: true
-  - name: "SG"
-    type: hysteria2
-    server: "sg3.oomz.ru"
-    port: 30000
-    password: "e7965e64-e001-4e8c-8273-39c61ff4a094"
-    sni: "bing.com"
-    skip-cert-verify: true
   - name: "@azadi,_config"
     type: hysteria2
     server: "206.71.158.37"
@@ -76,45 +55,38 @@ proxies:
     password: "Yet-Another-Public-Config-1"
     sni: "YAPC-1.afshin.ir"
     skip-cert-verify: true
-  - name: "@azadi_config`"
+  - name: "SG"
+    type: hysteria2
+    server: "sg3.oomz.ru"
+    port: 30000
+    password: "e7965e64-e001-4e8c-8273-39c61ff4a094"
+    sni: "bing.com"
+    skip-cert-verify: true
+  - name: "@V2rayNG3"
+    type: hysteria2
+    server: "206.71.158.41"
+    port: 35000
+    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
+    sni: "jnir.pichondan.com"
+    skip-cert-verify: true
+  - name: "@V2rayNG3"
     type: hysteria2
     server: "206.71.158.37"
-    port: 35200
+    port: 35000
     password: "Yet-Another-Public-Config-1"
     sni: "YAPC-1.afshin.ir"
     skip-cert-verify: true
-  - name: "☺️63@oneclickvpnkeys"
+  - name: "☺️92@oneclickvpnkeys"
+    type: hysteria2
+    server: "206.71.158.40"
+    port: 35000
+    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
+    sni: "api.kermanshahi.org"
+    skip-cert-verify: true
+  - name: "☺️68@oneclickvpnkeys"
     type: hysteria2
     server: "[2a14"
     port: 3f87
-    password: "Yet-Another-Public-Config-1"
-    sni: "YAPC-1.afshin.ir"
-    skip-cert-verify: true
-  - name: "🇭🇰"
-    type: hysteria2
-    server: "ffc60249-t53wg0-t92wi1-1qkeg.hk2.hyhuawei.com"
-    port: 443
-    password: "a305ac08-d136-11ee-b6db-f23c91cfbbc9"
-    sni: "ffc60249-t53wg0-t92wi1-1qkeg.hk2.hyhuawei.com"
-    skip-cert-verify: true
-  - name: "DE"
-    type: hysteria2
-    server: "de.eyucdn.xyz"
-    port: 2056
-    password: "a084933d-0b41-4571-ae0c-7163b8c71ed1"
-    sni: "de.eyucdn.xyz"
-    skip-cert-verify: true
-  - name: "JP"
-    type: hysteria2
-    server: "jp7.dexlos.com"
-    port: 13778
-    password: "95D27EEF-B7AE-4076-BA39-40FDFA3D0F61"
-    sni: "jp7.dexlos.com"
-    skip-cert-verify: true
-  - name: "☺️47@oneclickvpnkeys"
-    type: hysteria2
-    server: "[2a0c"
-    port: 4ac1
     password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
     sni: "api.kermanshahi.org"
     skip-cert-verify: true
@@ -124,4 +96,32 @@ proxies:
     port: bc8
     password: "dongtaiwang.com"
     sni: "apple.com"
+    skip-cert-verify: true
+  - name: "JP"
+    type: hysteria2
+    server: "jp7.dexlos.com"
+    port: 13778
+    password: "95D27EEF-B7AE-4076-BA39-40FDFA3D0F61"
+    sni: "jp7.dexlos.com"
+    skip-cert-verify: true
+  - name: "TW"
+    type: hysteria2
+    server: "tw.oomz.ru"
+    port: 30000
+    password: "e7965e64-e001-4e8c-8273-39c61ff4a094"
+    sni: "bing.com"
+    skip-cert-verify: true
+  - name: "@V2rayNG3"
+    type: hysteria2
+    server: "77.90.41.197"
+    port: 35000
+    password: "b4bd0613-ff7c-4f2f-954d-185915e6ddad"
+    sni: "api.kermanshahi.org"
+    skip-cert-verify: true
+  - name: "DE"
+    type: hysteria2
+    server: "de.eyucdn.xyz"
+    port: 2056
+    password: "a084933d-0b41-4571-ae0c-7163b8c71ed1"
+    sni: "de.eyucdn.xyz"
     skip-cert-verify: true
