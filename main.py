@@ -45,62 +45,80 @@ def parse_hy2_uri(url):
     except:
         return None
 
-def extract_from_yaml(content):
+def extract_from_content(text):
+    """从任何文本中提取 hy2 节点（包括解密 Base64）"""
     nodes = []
-    proxy_blocks = re.split(r'-\s*name:', content)
-    for block in proxy_blocks[1:]:
-        if re.search(r'type:\s*(?:hysteria2|hy2)', block, re.I):
-            try:
-                def get_val(key):
-                    m = re.search(rf'{key}:\s*["\']?(.+?)["\']?\s*(?:\n|$)', block)
-                    return m.group(1).strip() if m else ""
-                server = get_val("server")
-                port = get_val("port")
-                password = get_val("password") or get_val("auth")
-                name = block.split('\n')[0].strip('"\' ')
-                sni = get_val("sni") or server
-                if server and port and password:
-                    nodes.append({"name": name, "server": server, "port": port, "password": password, "sni": sni})
-            except:
-                continue
+    # 尝试直接找
+    uris = re.findall(r'(?:hysteria2|hy2)://[^\s\'"<>]+', text)
+    # 尝试解密后再找
+    decoded = try_base64_decode(text)
+    if decoded != text:
+        uris.extend(re.findall(r'(?:hysteria2|hy2)://[^\s\'"<>]+', decoded))
+    
+    for uri in set(uris):
+        n = parse_hy2_uri(uri)
+        if n: nodes.append(n)
     return nodes
 
 def main():
-    print(">>> 正在生成标准 YAML 格式...")
+    print(">>> 深度抓取模式启动...")
     all_final_nodes = []
+    
     for url in SOURCES:
         try:
+            print(f"正在扫描源: {url}")
             resp = requests.get(url, timeout=15)
             content = resp.text
-            uris = re.findall(r'(?:hysteria2|hy2)://[^\s\'"<>]+', content)
-            uris.extend(re.findall(r'(?:hysteria2|hy2)://[^\s\'"<>]+', try_base64_decode(content)))
-            for uri in set(uris):
-                node = parse_hy2_uri(uri)
-                if node: all_final_nodes.append(node)
-            all_final_nodes.extend(extract_from_yaml(content))
-        except:
-            continue
+            
+            # 1. 提取 YAML 里的节点
+            if "proxies:" in content:
+                from_yaml = re.split(r'-\s*name:', content)
+                for block in from_yaml[1:]:
+                    if re.search(r'type:\s*(?:hysteria2|hy2)', block, re.I):
+                        try:
+                            def gv(k):
+                                m = re.search(rf'{k}:\s*["\']?(.+?)["\']?\s*(?:\n|$)', block)
+                                return m.group(1).strip() if m else ""
+                            all_final_nodes.append({
+                                "name": block.split('\n')[0].strip('"\' '),
+                                "server": gv("server"), "port": gv("port"),
+                                "password": gv("password") or gv("auth"),
+                                "sni": gv("sni") or gv("server")
+                            })
+                        except: continue
 
+            # 2. 提取文本里的 URI
+            all_final_nodes.extend(extract_from_content(content))
+
+            # 3. 【核心修复】深度递归：找 README 里的订阅链接并点进去
+            if "README.md" in url:
+                # 寻找 crossxx 这种典型的订阅格式：http.../sub/hysteria/...
+                deep_links = re.findall(r'https?://[^\s\'"<>]+?/sub/(?:hysteria|hy2)/\d+', content)
+                for dl in set(deep_links):
+                    print(f"  --> 发现深度订阅地址，正在进入: {dl}")
+                    try:
+                        deep_resp = requests.get(dl, timeout=10)
+                        all_final_nodes.extend(extract_from_content(deep_resp.text))
+                    except: continue
+
+        except Exception as e:
+            print(f"扫描失败: {e}")
+
+    # 4. 写入文件
     yaml_lines = ["proxies:"]
     seen = set()
     for n in all_final_nodes:
+        if not n.get('server'): continue
         idx = f"{n['server']}:{n['port']}"
         if idx not in seen:
             seen.add(idx)
-            # 关键修复：所有字符串值都强制加上双引号，并转义内部的双引号
             clean_name = n['name'].replace('"', '\\"')
-            clean_pass = n['password'].replace('"', '\\"')
             yaml_lines.append(f"  - name: \"{clean_name}\"")
-            yaml_lines.append(f"    type: hysteria2")
-            yaml_lines.append(f"    server: \"{n['server']}\"")
-            yaml_lines.append(f"    port: {n['port']}")
-            yaml_lines.append(f"    password: \"{clean_pass}\"")
-            yaml_lines.append(f"    sni: \"{n['sni']}\"")
-            yaml_lines.append(f"    skip-cert-verify: true")
+            yaml_lines.append(f"    type: hysteria2\n    server: \"{n['server']}\"\n    port: {n['port']}\n    password: \"{n['password']}\"\n    sni: \"{n['sni']}\"\n    skip-cert-verify: true")
 
     with open("my_sub.yaml", "w", encoding="utf-8") as f:
         f.write("\n".join(yaml_lines))
-    print(f">>> 修复版已完成，共计 {len(seen)} 个节点。")
+    print(f"\n>>> 任务完成！共计 {len(seen)} 个节点。")
 
 if __name__ == "__main__":
     main()
