@@ -1,73 +1,73 @@
-# 增强版节点收集程序
+# 简单直接的节点收集程序
 import requests
 import re
-import base64
 
-print("🚀 开始收集节点链接...")
+print("🚀 启动节点收集程序...")
 
-# 使用更多的订阅源
+# 使用可靠的订阅源
 sources = [
-    "https://raw.githubusercontent.com/crossxx-labs/free-proxy/main/README.md",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_base64_Sub.txt",
     "https://raw.githubusercontent.com/moez06/V2ray-configs/main/All_Configs_base64_Sub.txt",
-    "https://chromego-sub.netlify.app/sub/merged_proxies_new.yaml",
-    "https://raw.githubusercontent.com/Ruk1ng001/freeSub/main/clash.yaml"
+    "https://sub.sharecentre.online/sub",  # 这个源通常有很多节点
 ]
 
-# 收集所有链接
 all_links = []
 
 for url in sources:
-    print(f"\n📥 正在获取: {url}")
+    print(f"\n📥 尝试: {url}")
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, timeout=20)
+        print(f"  状态码: {response.status_code}")
+        print(f"  内容长度: {len(response.text)} 字符")
+        
         if response.status_code == 200:
             content = response.text
             
-            # 方法1：直接查找各种链接
+            # 方法1：直接搜索 "vmess://"
+            if "vmess://" in content:
+                # 提取所有vmess链接
+                lines = content.split('\n')
+                for line in lines:
+                    if "vmess://" in line:
+                        # 清理链接
+                        link = line.strip()
+                        # 去除前后的引号或空格
+                        link = link.replace('"', '').replace("'", "").strip()
+                        if link.startswith("vmess://"):
+                            all_links.append(link)
+                            print(f"  找到: {link[:60]}...")
+            
+            # 方法2：正则查找
             patterns = [
-                r'vmess://[A-Za-z0-9+/=]+',          # vmess链接
-                r'vless://[^\s\'"<>]+',              # vless链接
-                r'trojan://[^\s\'"<>]+',             # trojan链接
-                r'ss://[^\s\'"<>]+',                 # ss链接
-                r'hy2://[^\s\'"<>]+',                # hysteria2链接
-                r'hysteria://[^\s\'"<>]+'            # hysteria链接
+                r'vmess://[A-Za-z0-9+/=\-_]+',
+                r'vless://[A-Za-z0-9%\-_\.:@]+',
+                r'trojan://[A-Za-z0-9%\-_\.:@]+'
             ]
             
-            found_count = 0
             for pattern in patterns:
-                matches = re.findall(pattern, content, re.IGNORECASE)
+                matches = re.findall(pattern, content)
                 if matches:
-                    all_links.extend(matches)
-                    found_count += len(matches)
-                    print(f"  找到 {len(matches)} 个 {pattern.split(':')[0]} 链接")
-            
-            # 方法2：尝试解码base64内容
-            try:
-                # 如果内容是base64编码的
-                if len(content) % 4 == 0 and re.match(r'^[A-Za-z0-9+/=]+$', content.strip()):
-                    decoded = base64.b64decode(content).decode('utf-8', errors='ignore')
-                    for pattern in patterns:
-                        matches = re.findall(pattern, decoded, re.IGNORECASE)
-                        if matches:
-                            all_links.extend(matches)
-                            print(f"  Base64解码后找到 {len(matches)} 个链接")
-            except:
-                pass
-            
-            if found_count == 0:
-                print(f"  ⚠️  这个源没有找到标准格式链接")
-                
+                    for match in matches:
+                        if match not in all_links:
+                            all_links.append(match)
+                    print(f"  正则找到 {len(matches)} 个 {pattern.split(':')[0]} 链接")
+    
     except Exception as e:
-        print(f"  ❌ 获取失败: {e}")
+        print(f"  ❌ 错误: {str(e)[:50]}")
 
-print(f"\n📊 统计结果:")
-print(f"总共找到 {len(all_links)} 个链接")
+print(f"\n📊 结果统计:")
+print(f"总共找到: {len(all_links)} 个链接")
 
-# 去重
 if all_links:
-    unique_links = list(set(all_links))
-    print(f"去重后剩下 {len(unique_links)} 个唯一链接")
+    # 去重
+    unique_links = []
+    seen = set()
+    for link in all_links:
+        if link not in seen:
+            seen.add(link)
+            unique_links.append(link)
+    
+    print(f"去重后: {len(unique_links)} 个唯一链接")
     
     # 保存到文件
     with open('nodes.txt', 'w', encoding='utf-8') as f:
@@ -76,22 +76,54 @@ if all_links:
     
     print("✅ 成功保存到 nodes.txt")
     
-    # 显示前5个链接作为示例
-    print("\n📋 示例链接（前5个）:")
-    for i, link in enumerate(unique_links[:5]):
+    # 显示一些示例
+    print("\n📋 链接示例:")
+    for i, link in enumerate(unique_links[:3]):
         print(f"{i+1}. {link[:80]}...")
-else:
-    print("❌ 没有找到任何节点链接！")
-    print("正在创建测试文件...")
     
-    # 创建测试文件，确保至少有个文件
-    test_nodes = [
-        "vmess://eyJhZGQiOiIxLjEuMS4xIiwicG9ydCI6IjQ0MyIsImlkIjoiMTIzNCIsImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsInBzIjoi5Yqg5ou/5pWwIiwiYWx0ZXJuYXRlSG9zdCI6IiIsIm9ic2VydmUiOiJub25lIn0=",
-        "vmess://eyJhZGQiOiIyLjIuMi4yIiwicG9ydCI6IjQ0MyIsImlkIjoiNTY3OCIsImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsInBzIjoi5Yqg5ou/5pWwIiwic25pIjoiZXhhbXBsZS5jb20ifQ=="
+else:
+    print("⚠️  没有找到标准格式的链接")
+    print("正在从其他源获取...")
+    
+    # 备用方案：从已知的好用源获取
+    try:
+        backup_url = "https://raw.githubusercontent.com/mianfeifq/share/main/README.md"
+        print(f"尝试备用源: {backup_url}")
+        resp = requests.get(backup_url, timeout=15)
+        
+        if resp.status_code == 200:
+            # 这个源通常有很多链接
+            backup_content = resp.text
+            backup_links = re.findall(r'vmess://[A-Za-z0-9+/=]+', backup_content)
+            
+            if backup_links:
+                print(f"从备用源找到 {len(backup_links)} 个链接")
+                with open('nodes.txt', 'w', encoding='utf-8') as f:
+                    for link in backup_links[:20]:  # 只取前20个
+                        f.write(link + '\n')
+                print("✅ 从备用源保存了链接")
+            else:
+                # 最后方案：创建测试文件
+                create_test_file()
+        else:
+            create_test_file()
+            
+    except:
+        create_test_file()
+
+def create_test_file():
+    """创建测试文件"""
+    print("创建测试节点文件...")
+    test_links = [
+        "vmess://eyJhZGQiOiJ2bS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjEyMzQ1Njc4OTAtMTIzNC01Njc4LTkwMTItMzQ1Njc4OTAxMiIsImFpZCI6IjAiLCJuZXQiOiJ3cyIsInR5cGUiOiJub25lIiwiaG9zdCI6IiIsInBhdGgiOiIiLCJ0bHMiOiJ0bHMifQ==",
+        "vmess://eyJhZGQiOiJub2RlMS5mcmVlcHJveHkub3JnIiwicG9ydCI6IjgwODAiLCJpZCI6ImFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3IiwgImFpZCI6IjAiLCJuZXQiOiJ0Y3AiLCJ0eXBlIjoibm9uZSIsInBzIjoiVGVzdCBOb2RlIDEifQ==",
+        "vmess://eyJhZGQiOiJmcmVlLnZwbi5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiI1Njc4OTAxMi0zNDU2LTc4OTAtMTIzNDU2Nzg5MDEyIiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiIiwicGF0aCI6IiIsInRscyI6InRscyJ9"
     ]
     
     with open('nodes.txt', 'w', encoding='utf-8') as f:
-        for node in test_nodes:
-            f.write(node + '\n')
+        for link in test_links:
+            f.write(link + '\n')
     
-    print("✅ 已创建包含测试节点的 nodes.txt")
+    print("✅ 已创建测试 nodes.txt 文件")
+
+print("\n✨ 程序执行完成！")
