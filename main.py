@@ -15,6 +15,13 @@ SOURCES = [
     "https://raw.githubusercontent.com/ovmvo/SubShare/refs/heads/main/sub/permanent/mihomo.yaml"
 ]
 
+def clean_str(s):
+    """极其严格的字符串清洗：移除所有可能干扰 YAML 解析的符号"""
+    if not s: return ""
+    # 只保留字母、数字、点、横杠、下划线、空格和常见中文字符
+    s = re.sub(r'[^\w\.\-\_\s\u4e00-\u9fa5]', '', str(s))
+    return s.strip()
+
 def check_port(host, port):
     try:
         with socket.create_connection((host, int(port)), timeout=2):
@@ -41,8 +48,7 @@ def parse_any_uri(url):
         
         if scheme == "vmess":
             try:
-                v_str = url[8:]
-                v_data = json.loads(try_base64_decode(v_str))
+                v_data = json.loads(try_base64_decode(url[8:]))
                 return {
                     "name": v_data.get('ps', name), "type": "vmess", "server": v_data['add'],
                     "port": v_data['port'], "uuid": v_data.get('id', ''), "aid": v_data.get('aid', 0),
@@ -54,7 +60,6 @@ def parse_any_uri(url):
         params = {k: v[0] for k, v in [p.split('=') for p in parsed.query.split('&')] if '=' in p}
         
         node = {"name": name, "type": scheme, "server": parsed.hostname, "port": parsed.port or 443, "sni": params.get("sni", parsed.hostname)}
-
         if scheme == "vless":
             node.update({"uuid": user_info, "tls": True})
         elif scheme == "trojan":
@@ -69,12 +74,11 @@ def parse_any_uri(url):
         return None
 
 def main():
-    print(">>> 正在抓取并过滤节点...")
+    print(">>> 深度防御模式启动...")
     raw_nodes = []
     for url in SOURCES:
         try:
             content = requests.get(url, timeout=15).text
-            # 基础文本解析
             uris = re.findall(r'(?:vmess|vless|trojan|ss|hy\d?)://[^\s\'"<>]+', content)
             uris.extend(re.findall(r'(?:vmess|vless|trojan|ss|hy\d?)://[^\s\'"<>]+', try_base64_decode(content)))
             for u in set(uris):
@@ -82,7 +86,6 @@ def main():
                 if n: raw_nodes.append(n)
         except: continue
 
-    # 并发测速检测
     seen = set()
     unique_nodes = []
     for n in raw_nodes:
@@ -92,22 +95,20 @@ def main():
             seen.add(key)
             unique_nodes.append(n)
 
-    print(f">>> 开始检测 {len(unique_nodes)} 个节点...")
-    with ThreadPoolExecutor(max_workers=30) as executor:
+    print(f">>> 开始并发检测 {len(unique_nodes)} 个节点...")
+    with ThreadPoolExecutor(max_workers=35) as executor:
         alive_nodes = list(filter(None, executor.map(lambda n: n if check_port(n['server'], n['port']) else None, unique_nodes)))
 
-    # 写入 YAML (加强引号保护)
     with open("my_sub.yaml", "w", encoding="utf-8") as f:
         f.write("proxies:\n")
         for n in alive_nodes:
-            # 强制清理名字中的非法字符并包裹引号
-            safe_name = str(n['name']).replace('"', '').replace(':', ' ').strip()
-            f.write(f"  - name: \"{safe_name}\"\n")
+            # 使用 clean_str 彻底清洗所有字符串字段
+            f.write(f"  - name: \"{clean_str(n['name'])}\"\n")
             f.write(f"    type: {n['type']}\n")
             f.write(f"    server: \"{n['server']}\"\n")
             f.write(f"    port: {n['port']}\n")
             f.write(f"    skip-cert-verify: true\n")
-            f.write(f"    sni: \"{n.get('sni', n['server'])}\"\n")
+            f.write(f"    sni: \"{clean_str(n.get('sni', n['server']))}\"\n")
             
             if n['type'] == "vmess":
                 f.write(f"    uuid: \"{n.get('uuid', '')}\"\n    alterId: {n.get('aid', 0)}\n    cipher: auto\n")
@@ -115,8 +116,7 @@ def main():
                 f.write(f"    uuid: \"{n.get('uuid', '')}\"\n    cipher: auto\n")
             else:
                 f.write(f"    password: \"{n.get('password', '')}\"\n")
-    
-    print(f">>> 完成！保留活节点: {len(alive_nodes)} 个")
+    print(f">>> 检测完成，已生成纯净版 YAML。")
 
 if __name__ == "__main__":
     main()
