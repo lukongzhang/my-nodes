@@ -2,6 +2,7 @@ import requests
 import re
 import base64
 import json
+import socket
 from urllib.parse import urlparse, unquote
 
 SOURCES = [
@@ -12,6 +13,15 @@ SOURCES = [
     "https://raw.githubusercontent.com/Ruk1ng001/freeSub/main/clash.yaml",
     "https://raw.githubusercontent.com/ovmvo/SubShare/refs/heads/main/sub/permanent/mihomo.yaml"
 ]
+
+def check_port(host, port):
+    """检测节点服务器端口是否开放"""
+    try:
+        # 尝试建立 TCP 连接，超时时间设为 2 秒
+        with socket.create_connection((host, int(port)), timeout=2):
+            return True
+    except:
+        return False
 
 def try_base64_decode(text):
     try:
@@ -31,7 +41,6 @@ def parse_any_uri(url):
         server = parsed.hostname
         port = parsed.port or 443
         
-        # 1. VMess
         if scheme == "vmess":
             try:
                 v_data = json.loads(try_base64_decode(url[8:]))
@@ -43,7 +52,6 @@ def parse_any_uri(url):
                 }
             except: return None
 
-        # 2. VLESS / Trojan / SS / Hysteria
         user_info = unquote(parsed.netloc.split('@')[0]) if '@' in parsed.netloc else ""
         params = {k: v[0] for k, v in [p.split('=') for p in parsed.query.split('&')] if '=' in p}
         
@@ -67,8 +75,8 @@ def parse_any_uri(url):
         return None
 
 def main():
-    print(">>> 启动全协议稳定抓取...")
-    all_final_nodes = []
+    print(">>> 启动存活节点检测模式...")
+    all_raw_nodes = []
     
     for url in SOURCES:
         try:
@@ -84,7 +92,7 @@ def main():
                         def gv(k):
                             m = re.search(rf'{k}:\s*["\']?(.+?)["\']?\s*(?:\n|$)', block)
                             return m.group(1).strip() if m else ""
-                        all_final_nodes.append({
+                        all_raw_nodes.append({
                             "name": block.split('\n')[0].strip('"\' '),
                             "type": gv("type"), "server": gv("server"), "port": gv("port"),
                             "password": gv("password") or gv("uuid") or gv("auth"),
@@ -98,45 +106,39 @@ def main():
             uris = re.findall(r'(?:vmess|vless|trojan|ss|hysteria2|hysteria|hy2)://[^\s\'"<>]+', content)
             decoded = try_base64_decode(content)
             uris.extend(re.findall(r'(?:vmess|vless|trojan|ss|hysteria2|hysteria|hy2)://[^\s\'"<>]+', decoded))
-            
             for uri in set(uris):
                 node = parse_any_uri(uri)
-                if node: all_final_nodes.append(node)
-
-            # 递归
-            if "README.md" in url:
-                deep_links = re.findall(r'https?://[^\s\'"<>]+?/sub/[^\s\'"<>]+', content)
-                for dl in set(deep_links):
-                    try:
-                        d_resp = requests.get(dl, timeout=10)
-                        all_final_nodes.extend([parse_any_uri(u) for u in re.findall(r'(?:vmess|vless|trojan|ss|hy\d?)://[^\s\'"<>]+', try_base64_decode(d_resp.text)) if u])
-                    except: continue
+                if node: all_raw_nodes.append(node)
         except: continue
 
-    # 写入 YAML
+    # --- 关键过滤环节 ---
     yaml_lines = ["proxies:"]
     seen = set()
-    for n in all_final_nodes:
+    alive_count = 0
+    
+    print(f"\n>>> 原始抓取到 {len(all_raw_nodes)} 个节点，正在进行存活检测 (请耐心等待)...")
+
+    for n in all_raw_nodes:
         if not n or not n.get('server'): continue
         idx = f"{n['type']}:{n['server']}:{n['port']}"
         if idx not in seen:
             seen.add(idx)
-            clean_name = str(n.get('name', 'node')).replace('"', '\\"')
-            yaml_lines.append(f"  - name: \"{clean_name}\"\n    type: {n['type']}\n    server: \"{n['server']}\"\n    port: {n['port']}")
-            
-            # 安全写入字段
-            if n['type'] == "vmess":
-                yaml_lines.append(f"    uuid: \"{n.get('uuid', '')}\"\n    alterId: {n.get('alterId', 0)}\n    cipher: auto")
-            elif n['type'] == "vless":
-                yaml_lines.append(f"    uuid: \"{n.get('uuid', '')}\"\n    cipher: auto")
-            else:
-                yaml_lines.append(f"    password: \"{n.get('password', '')}\"")
-                
-            yaml_lines.append(f"    sni: \"{n.get('sni', n['server'])}\"\n    skip-cert-verify: true")
+            # 进行端口检测
+            if check_port(n['server'], n['port']):
+                alive_count += 1
+                clean_name = str(n.get('name', 'node')).replace('"', '\\"')
+                yaml_lines.append(f"  - name: \"{clean_name}\"\n    type: {n['type']}\n    server: \"{n['server']}\"\n    port: {n['port']}")
+                if n['type'] == "vmess":
+                    yaml_lines.append(f"    uuid: \"{n.get('uuid', '')}\"\n    alterId: {n.get('alterId', 0)}\n    cipher: auto")
+                elif n['type'] == "vless":
+                    yaml_lines.append(f"    uuid: \"{n.get('uuid', '')}\"\n    cipher: auto")
+                else:
+                    yaml_lines.append(f"    password: \"{n.get('password', '')}\"")
+                yaml_lines.append(f"    sni: \"{n.get('sni', n['server'])}\"\n    skip-cert-verify: true")
 
     with open("my_sub.yaml", "w", encoding="utf-8") as f:
         f.write("\n".join(yaml_lines))
-    print(f"\n>>> 任务结束！共计: {len(seen)} 个节点。")
+    print(f"\n>>> 检测完成！丢弃了 {len(seen) - alive_count} 个死节点，保留了 {alive_count} 个活节点。")
 
 if __name__ == "__main__":
     main()
